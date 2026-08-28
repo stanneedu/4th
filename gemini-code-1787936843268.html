@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>State Mystery Detective</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none; /* Prevents text selection on touchscreens */
+    }
+
+    body {
+      margin: 0;
+      padding: 15px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #1a2530;
+      color: #ffffff;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      touch-action: none; /* Disables board browser swipe gestures */
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #2c3e50;
+      padding: 10px 20px;
+      border-radius: 10px;
+      margin-bottom: 15px;
+    }
+
+    h1 { margin: 0; font-size: 1.6rem; color: #f1c40f; }
+    
+    .score-board {
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+
+    .game-container {
+      display: flex;
+      flex: 1;
+      gap: 15px;
+      height: calc(100vh - 100px);
+    }
+
+    /* Clue Sidebar */
+    .clue-card {
+      flex: 1;
+      background: #2c3e50;
+      border-radius: 10px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+
+    .clue-title {
+      font-size: 1.3rem;
+      color: #3498db;
+      border-bottom: 2px solid #3498db;
+      padding-bottom: 5px;
+      margin-top: 0;
+    }
+
+    .clue-list {
+      list-style-type: none;
+      padding: 0;
+      margin: 15px 0;
+      flex-grow: 1;
+    }
+
+    .clue-item {
+      background: #34495e;
+      padding: 12px 15px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      border-left: 5px solid #f1c40f;
+      animation: fadeIn 0.4s ease-in;
+    }
+
+    /* Action Buttons */
+    .btn {
+      background: #27ae60;
+      color: white;
+      border: none;
+      padding: 15px 20px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor: pointer;
+      min-height: 60px; /* Touch target minimum size */
+      transition: background 0.2s;
+    }
+
+    .btn:active { transform: scale(0.98); }
+    .btn-secondary { background: #e67e22; }
+
+    /* Map Display Area */
+    .map-area {
+      flex: 2.5;
+      background: #2c3e50;
+      border-radius: 10px;
+      padding: 10px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+      max-height: 100%;
+    }
+
+    /* SVG Map Styling */
+    .state {
+      fill: #ecf0f1;
+      stroke: #2c3e50;
+      stroke-width: 1.5;
+      cursor: pointer;
+      transition: fill 0.2s;
+    }
+
+    .state:hover { fill: #f39c12; }
+    
+    .state.eliminated {
+      fill: #7f8c8d !important;
+      opacity: 0.4;
+    }
+
+    .state.correct { fill: #2ecc71 !important; }
+    .state.wrong { fill: #e74c3c !important; }
+
+    /* Feedback Banner */
+    #feedback {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 15px 30px;
+      font-size: 1.4rem;
+      font-weight: bold;
+      border-radius: 30px;
+      display: none;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🕵️ State Mystery Detective</h1>
+    <div class="score-board">Score: <span id="score">0</span></div>
+  </header>
+
+  <div class="game-container">
+    <div class="clue-card">
+      <div>
+        <h2 class="clue-title">Case File: Target State</h2>
+        <ul class="clue-list" id="clue-container">
+          </ul>
+      </div>
+      
+      <div style="display: flex; gap: 10px; flex-direction: column;">
+        <button class="btn btn-secondary" id="next-clue-btn" onclick="revealNextClue()">🔍 Reveal Next Clue</button>
+        <button class="btn" onclick="startNewGame()">🎲 Next Case</button>
+      </div>
+    </div>
+
+    <div class="map-area">
+      <svg viewBox="0 0 960 600" id="us-map">
+        <path class="state" id="WA" d="M120,40 L210,40 L200,100 L110,90 Z" data-name="Washington"></path>
+        <path class="state" id="OR" d="M110,90 L200,100 L190,170 L90,160 Z" data-name="Oregon"></path>
+        <path class="state" id="CA" d="M90,160 L190,170 L150,310 L70,270 Z" data-name="California"></path>
+        <path class="state" id="NV" d="M190,170 L250,180 L230,280 L150,270 Z" data-name="Nevada"></path>
+        <path class="state" id="ID" d="M210,40 L260,40 L280,150 L200,140 Z" data-name="Idaho"></path>
+        <path class="state" id="UT" d="M240,150 L300,150 L290,240 L230,240 Z" data-name="Utah"></path>
+        <path class="state" id="AZ" d="M230,240 L300,240 L280,340 L210,330 Z" data-name="Arizona"></path>
+        
+        <path class="state" id="MT" d="M260,40 L400,50 L390,130 L270,120 Z" data-name="Montana"></path>
+        <path class="state" id="WY" d="M270,120 L390,130 L380,200 L270,190 Z" data-name="Wyoming"></path>
+        <path class="state" id="CO" d="M270,190 L390,200 L380,280 L270,270 Z" data-name="Colorado"></path>
+        <path class="state" id="NM" d="M280,280 L370,280 L360,380 L270,380 Z" data-name="New Mexico"></path>
+        <path class="state" id="ND" d="M390,50 L500,50 L500,110 L390,110 Z" data-name="North Dakota"></path>
+        <path class="state" id="SD" d="M390,110 L500,110 L500,170 L390,170 Z" data-name="South Dakota"></path>
+        <path class="state" id="NE" d="M380,170 L510,170 L510,230 L380,220 Z" data-name="Nebraska"></path>
+        <path class="state" id="KS" d="M380,230 L510,230 L510,290 L380,290 Z" data-name="Kansas"></path>
+        <path class="state" id="OK" d="M370,290 L510,290 L510,350 L370,340 Z" data-name="Oklahoma"></path>
+        <path class="state" id="TX" d="M360,350 L510,350 L480,500 L340,430 Z" data-name="Texas"></path>
+
+        <path class="state" id="MN" d="M500,50 L590,60 L570,150 L500,140 Z" data-name="Minnesota"></path>
+        <path class="state" id="IA" d="M510,150 L590,150 L580,220 L510,210 Z" data-name="Iowa"></path>
+        <path class="state" id="MO" d="M510,220 L600,220 L590,300 L510,290 Z" data-name="Missouri"></path>
+        <path class="state" id="WI" d="M570,90 L640,90 L630,170 L570,160 Z" data-name="Wisconsin"></path>
+        <path class="state" id="IL" d="M580,170 L640,170 L630,260 L580,250 Z" data-name="Illinois"></path>
+        <path class="state" id="MI" d="M630,90 L700,90 L690,170 L630,160 Z" data-name="Michigan"></path>
+        <path class="state" id="IN" d="M640,180 L690,180 L680,260 L630,260 Z" data-name="Indiana"></path>
+        <path class="state" id="OH" d="M690,180 L750,180 L740,250 L680,250 Z" data-name="Ohio"></path>
+
+        <path class="state" id="AR" d="M510,300 L590,300 L580,370 L510,360 Z" data-name="Arkansas"></path>
+        <path class="state" id="LA" d="M510,360 L580,360 L570,440 L510,430 Z" data-name="Louisiana"></path>
+        <path class="state" id="MS" d="M580,340 L630,340 L620,430 L570,430 Z" data-name="Mississippi"></path>
+        <path class="state" id="AL" d="M630,340 L680,340 L670,430 L620,430 Z" data-name="Alabama"></path>
+        <path class="state" id="TN" d="M590,290 L710,280 L700,330 L580,330 Z" data-name="Tennessee"></path>
+        <path class="state" id="KY" d="M600,240 L710,230 L700,280 L590,280 Z" data-name="Kentucky"></path>
+        <path class="state" id="GA" d="M680,340 L750,340 L730,430 L670,420 Z" data-name="Georgia"></path>
+        <path class="state" id="FL" d="M670,420 L760,420 L790,530 L730,520 Z" data-name="Florida"></path>
+
+        <path class="state" id="PA" d="M740,160 L830,160 L820,210 L730,210 Z" data-name="Pennsylvania"></path>
+        <path class="state" id="NY" d="M750,100 L850,90 L840,160 L740,160 Z" data-name="New York"></path>
+        <path class="state" id="VT" d="M830,70 L860,70 L850,110 L820,110 Z" data-name="Vermont"></path>
+        <path class="state" id="ME" d="M860,30 L910,30 L900,90 L850,90 Z" data-name="Maine"></path>
+        <path class="state" id="VA" d="M720,230 L810,220 L800,270 L710,270 Z" data-name="Virginia"></path>
+        <path class="state" id="NC" d="M710,270 L830,260 L820,310 L700,310 Z" data-name="North Carolina"></path>
+        <path class="state" id="SC" d="M700,310 L780,310 L760,360 L690,350 Z" data-name="South Carolina"></path>
+
+        <path class="state" id="AK" d="M60,450 L160,450 L140,550 L40,530 Z" data-name="Alaska"></path>
+        <path class="state" id="HI" d="M200,480 L250,480 L240,520 L190,520 Z" data-name="Hawaii"></path>
+      </svg>
+
+      <div id="feedback"></div>
+    </div>
+  </div>
+
+  <script>
+    // Database of Target States and Clues
+    const stateDatabase = [
+      {
+        id: "FL",
+        name: "Florida",
+        clues: [
+          "Located in the Southeast region.",
+          "It is a peninsula surrounded by ocean water on 3 sides.",
+          "The capital city is Tallahassee.",
+          "Famous for Everglades National Park and citrus fruits."
+        ]
+      },
+      {
+        id: "CA",
+        name: "California",
+        clues: [
+          "Located in the Pacific West region.",
+          "Borders the Pacific Ocean.",
+          "It has the largest population of any U.S. state.",
+          "Home to Death Valley and the Golden Gate Bridge."
+        ]
+      },
+      {
+        id: "TX",
+        name: "Texas",
+        clues: [
+          "Located in the Southwest region.",
+          "Borders the country of Mexico.",
+          "Known as the 'Lone Star State'.",
+          "The capital city is Austin."
+        ]
+      },
+      {
+        id: "NY",
+        name: "New York",
+        clues: [
+          "Located in the Northeast region.",
+          "Borders Canada and the Atlantic Ocean.",
+          "The capital city is Albany (not its biggest city!).",
+          "Home to the Statue of Liberty."
+        ]
+      },
+      {
+        id: "OH",
+        name: "Ohio",
+        clues: [
+          "Located in the Midwest region.",
+          "Borders Lake Erie to the North.",
+          "Known as the 'Buckeye State'.",
+          "The capital city is Columbus."
+        ]
+      }
+    ];
+
+    let currentState = null;
+    let currentClueIndex = 0;
+    let score = 0;
+    let gameActive = false;
+
+    function startNewGame() {
+      // Reset state highlights
+      document.querySelectorAll('.state').forEach(el => {
+        el.className.baseVal = 'state';
+      });
+
+      // Select random state
+      const randomIndex = Math.floor(Math.random() * stateDatabase.length);
+      currentState = stateDatabase[randomIndex];
+      currentClueIndex = 0;
+      gameActive = true;
+
+      // Clear Clues UI
+      const clueContainer = document.getElementById('clue-container');
+      clueContainer.innerHTML = '';
+      
+      // Hide feedback
+      document.getElementById('feedback').style.display = 'none';
+
+      // Show First Clue
+      revealNextClue();
+    }
+
+    function revealNextClue() {
+      if (!gameActive) return;
+
+      const clueContainer = document.getElementById('clue-container');
+      
+      if (currentClueIndex < currentState.clues.length) {
+        const newClue = document.createElement('li');
+        newClue.className = 'clue-item';
+        newClue.innerHTML = `<strong>Clue #${currentClueIndex + 1}:</strong> ${currentState.clues[currentClueIndex]}`;
+        clueContainer.appendChild(newClue);
+        currentClueIndex++;
+      }
+
+      // Disable button if no clues left
+      if (currentClueIndex >= currentState.clues.length) {
+        document.getElementById('next-clue-btn').disabled = true;
+      } else {
+        document.getElementById('next-clue-btn').disabled = false;
+      }
+    }
+
+    // Touch and Click Event Handlers
+    document.querySelectorAll('.state').forEach(stateEl => {
+      // Use pointerdown for responsive touch interactions on Promethean Boards
+      stateEl.addEventListener('pointerdown', (e) => {
+        if (!gameActive) return;
+
+        const selectedId = e.target.id;
+        const selectedName = e.target.getAttribute('data-name');
+
+        if (selectedId === currentState.id) {
+          // Correct Answer
+          e.target.classList.add('correct');
+          showFeedback(`Correct! It's ${currentState.name}! 🎉`, '#2ecc71');
+          score += Math.max(10, 50 - (currentClueIndex * 10)); // More points for fewer clues
+          document.getElementById('score').textContent = score;
+          gameActive = false;
+        } else {
+          // Incorrect Answer - Gray out (Eliminate) state
+          e.target.classList.add('eliminated');
+          showFeedback(`Not ${selectedName}! Try eliminating it.`, '#e74c3c');
+        }
+      });
+    });
+
+    function showFeedback(text, color) {
+      const feedback = document.getElementById('feedback');
+      feedback.textContent = text;
+      feedback.style.backgroundColor = color;
+      feedback.style.color = '#ffffff';
+      feedback.style.display = 'block';
+
+      if (gameActive) {
+        setTimeout(() => {
+          feedback.style.display = 'none';
+        }, 2000);
+      }
+    }
+
+    // Initialize Game on Load
+    window.onload = startNewGame;
+  </script>
+</body>
+</html>
